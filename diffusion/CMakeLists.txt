@@ -1,4 +1,4 @@
-SET(TARGET "reaction")
+SET(TARGET "diffusion")
 
 SET(TARGET_SRC
   ${TARGET}.cpp

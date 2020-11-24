@@ -60,10 +60,6 @@ PetscErrorCode ExactSolution(double t, Vec y)
 }
 
 
-
-
-
-
 int main(int argc,char **argv) 
 {
 	PetscErrorCode ierr;

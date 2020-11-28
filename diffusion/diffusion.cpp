@@ -38,70 +38,58 @@ int main(int argc, char **argv)
     user.D0 = 1.0;
 
     //create DMDA grid:
-    ierr = DMDACreate2d(PETSC_COMM_WORLD, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DMDA_STENCIL_STAR, 10, 10, PETSC_DECIDE, PETSC_DECIDE, 1, 1, NULL, NULL, &da);
-    CHKERRQ(ierr);
-    ierr = DMSetFromOptions(da);
-    CHKERRQ(ierr);
-    ierr = DMSetUp(da);
-    CHKERRQ(ierr);
-    ierr = DMCreateGlobalVector(da, &u);
-    CHKERRQ(ierr);
+    ierr = DMDACreate2d(PETSC_COMM_WORLD, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DMDA_STENCIL_STAR, 10, 10, PETSC_DECIDE, PETSC_DECIDE, 1, 1, NULL, NULL, &da);CHKERRQ(ierr);
+    ierr = DMSetFromOptions(da);CHKERRQ(ierr);
+    ierr = DMSetUp(da);CHKERRQ(ierr);
+    ierr = DMCreateGlobalVector(da, &u);CHKERRQ(ierr);
+    const double L = 1.0;
+    ierr = DMDASetUniformCoordinates(da, 0.0, L, 0.0, L, -1.0, -1.0); CHKERRQ(ierr);
+
 
     //create TS object
-    ierr = TSCreate(PETSC_COMM_WORLD, &ts);
-    CHKERRQ(ierr);
-    ierr = TSSetProblemType(ts, TS_NONLINEAR);
-    CHKERRQ(ierr);
-    ierr = TSSetDM(ts, da);
-    CHKERRQ(ierr);
-    ierr = TSSetApplicationContext(ts, &user);
-    CHKERRQ(ierr);
-    ierr = DMDATSSetRHSFunctionLocal(da, INSERT_VALUES, (DMDATSRHSFunctionLocal)FormRHSFunctionLocal, &user);
-    CHKERRQ(ierr);
-    ierr = TSSetType(ts, TSEULER);
-    CHKERRQ(ierr);
-    ierr = TSSetTime(ts, 0.0);
-    CHKERRQ(ierr);
-    ierr = TSSetMaxTime(ts, 0.5);
-    CHKERRQ(ierr);
-    ierr = TSSetTimeStep(ts, 0.001);
-    CHKERRQ(ierr);
-    ierr = TSSetExactFinalTime(ts, TS_EXACTFINALTIME_MATCHSTEP);
-    CHKERRQ(ierr);
-    ierr = TSSetFromOptions(ts);
-    CHKERRQ(ierr);
+    ierr = TSCreate(PETSC_COMM_WORLD, &ts);CHKERRQ(ierr);
+    ierr = TSSetProblemType(ts, TS_NONLINEAR);CHKERRQ(ierr);
+    ierr = TSSetDM(ts, da);CHKERRQ(ierr);
+    ierr = TSSetApplicationContext(ts, &user);CHKERRQ(ierr);
+    ierr = DMDATSSetRHSFunctionLocal(da, INSERT_VALUES, (DMDATSRHSFunctionLocal)FormRHSFunctionLocal, &user);CHKERRQ(ierr);
+    ierr = TSSetType(ts, TSEULER);CHKERRQ(ierr);
+    ierr = TSSetTime(ts, 0.0);CHKERRQ(ierr);
+    ierr = TSSetMaxTime(ts, 0.5);CHKERRQ(ierr);
+    ierr = TSSetTimeStep(ts, 0.001);CHKERRQ(ierr);
+    ierr = TSSetExactFinalTime(ts, TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
+    ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
 
     // report on set up
-    ierr = TSGetTime(ts, &t0);
-    CHKERRQ(ierr);
-    CHKERRQ(ierr);
+    ierr = TSGetTime(ts, &t0);CHKERRQ(ierr);CHKERRQ(ierr);
     ierr = TSGetMaxTime(ts, &tf);
-    ierr = DMDAGetLocalInfo(da, &info);
-    CHKERRQ(ierr);
+    ierr = DMDAGetLocalInfo(da, &info);CHKERRQ(ierr);
 
-    ierr = PetscPrintf(PETSC_COMM_WORLD, "solving on %d x %d grid for t0=%g to tf=%g ...\n", info.mx, info.my, t0, tf);
-    CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "solving on %d x %d grid for t0=%g to tf=%g ...\n", info.mx, info.my, t0, tf);CHKERRQ(ierr);
 
     //solve
-    ierr = VecSet(u, 0.0);
-    CHKERRQ(ierr);
-    ierr = TSSolve(ts, u);
-    CHKERRQ(ierr);
-
-    //write vtk file:
-    PetscViewer viewer;
-
-    PetscViewerASCIIOpen(PETSC_COMM_WORLD, "../plot/u.vtk", &viewer);
+    ierr = VecSet(u, 0.0);CHKERRQ(ierr);
+    ierr = TSSolve(ts, u);CHKERRQ(ierr);
+	
+	 //plot vtk:
+    char filename[20];
+    sprintf(filename, "sol-%05d.vtk", 1); // 4 is the padding level, increase it for longer simulations 
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"Writing data in vtk format to %s at t = %f, step = %d\n", filename, time, 1); CHKERRQ(ierr);
+    PetscViewer viewer;  
+    PetscViewerASCIIOpen(PETSC_COMM_WORLD, filename, &viewer);
     PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_VTK);
-    DMView(da, viewer);
+    ierr = DMView(da, viewer);
     VecView(u, viewer);
-    PetscViewerDestroy(&viewer);
+    
+    ierr = PetscViewerDestroy(&viewer); CHKERRQ(ierr);
+
 
     VecDestroy(&u);
     TSDestroy(&ts);
     DMDestroy(&da);
     return PetscFinalize();
 }
+
+
 
 PetscErrorCode FormRHSFunctionLocal(DMDALocalInfo *info, PetscReal t, PetscReal **au, PetscReal **aG, HeatCtx *user)
 {

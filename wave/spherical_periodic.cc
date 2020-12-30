@@ -16,12 +16,19 @@ struct Perturbation
 {
   PetscReal operator()(PetscReal x, PetscReal y)
   {
-    return std::exp(-std::log(2.0) * ((x - xs) * (x - xs) + (y - ys) * (y - ys)) / (w * w));
+    auto r = ((x - xs) * (x - xs) + (y - ys) * (y - ys));
+    return std::exp(-std::log(2.0) * (r * r) / (w * w));
   };
 
   PetscReal xs, ys; //source location:
   PetscReal w;      //half width:
 };
+
+
+//exact solution:
+
+
+
 
 PetscErrorCode Spacings(DMDALocalInfo *info, PetscReal *hx, PetscReal *hy);
 PetscErrorCode FormRHSFunctionLocal(DMDALocalInfo *info, PetscReal t, Field **aX, Field **aF, WaveCtx *user);
@@ -40,11 +47,11 @@ int main(int argc,char **argv)
 
     //grid:
     PetscReal             Lx = 10.0, Ly = 10.0;
-    PetscInt              Nx = 640, Ny = 640;
+    PetscInt              Nx = 400, Ny = 400;
     PetscReal             hx = Lx/PetscReal(Nx), hy = Ly/PetscReal(Ny);
 
     //wave speed, time step and cfl:
-    PetscReal             C = 0.5, dt = 0.001, Tf = 1.0;
+    PetscReal             C = 10.0, dt = 0.001, Tf = 0.3;
     PetscReal             cfl = C*(dt/hx + dt/hy);  
 
     ierr = PetscInitialize(&argc,&argv,NULL,NULL); if (ierr) return ierr;
@@ -68,7 +75,7 @@ int main(int argc,char **argv)
     ierr = TSSetDM(ts,da); CHKERRQ(ierr);
     ierr = TSSetApplicationContext(ts,&user); CHKERRQ(ierr);
     ierr = DMDATSSetRHSFunctionLocal(da,INSERT_VALUES,(DMDATSRHSFunctionLocal)FormRHSFunctionLocal,&user); CHKERRQ(ierr);
-    ierr = TSMonitorSet(ts,MyTSMonitor,0,0);CHKERRQ(ierr);
+    //ierr = TSMonitorSet(ts,MyTSMonitor,0,0);CHKERRQ(ierr);
 
     ierr = TSSetType(ts,TSRK);CHKERRQ(ierr);
     ierr = TSSetTime(ts,0.0); CHKERRQ(ierr);
@@ -110,13 +117,17 @@ PetscErrorCode FormRHSFunctionLocal(DMDALocalInfo *info, PetscReal t, Field **aX
   PetscReal hx, hy;
   Spacings(info, &hx, &hy);
 
+  //uxx and uyy:
+  PetscReal uxx,uyy;
+
+  //loop over grid points in the current process and compute rhs:
   for (int j = info->ys; j < info->ys + info->ym; j++)
   {
     for (int i = info->xs; i < info->xs + info->xm; i++)
     {
 
-      auto uxx = (aX[j][i + 1].u - 2.0 * aX[j][i].u + aX[j][i - 1].u) / (hx * hx);
-      auto uyy = (aX[j + 1][i].u - 2.0 * aX[j][i].u + aX[j - 1][i].u) / (hy * hy);
+      uxx = (aX[j][i + 1].u - 2.0 * aX[j][i].u + aX[j][i - 1].u) / (hx * hx);
+      uyy = (aX[j + 1][i].u - 2.0 * aX[j][i].u + aX[j - 1][i].u) / (hy * hy);
 
       aF[j][i].u = aX[j][i].v;
       aF[j][i].v = C * C * (uxx + uyy);
@@ -160,6 +171,8 @@ PetscErrorCode MyTSMonitor(TS ts,PetscInt step,PetscReal ptime,Vec v,void *ctx)
   PetscErrorCode ierr;
   DM da;
   ierr = TSGetDM(ts,&da); CHKERRQ(ierr);
+
+  
   if (step % 10 == 0)
   {
     //plot vtk:
@@ -176,3 +189,8 @@ PetscErrorCode MyTSMonitor(TS ts,PetscInt step,PetscReal ptime,Vec v,void *ctx)
 
   return 0;
 }
+
+/**
+ * @brief run
+ *  mpiexec -n 2 ./wave -log_view | grep "Time (sec):"
+ */

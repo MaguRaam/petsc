@@ -17,7 +17,7 @@ struct Perturbation
   PetscReal operator()(PetscReal x, PetscReal y)
   {
     auto r = ((x - xs) * (x - xs) + (y - ys) * (y - ys));
-    return std::exp(-std::log(2.0) * (r * r) / (w * w));
+    return 10*std::exp(-std::log(2.0) * (r * r) / (w * w));
   };
 
   PetscReal xs, ys; //source location:
@@ -46,12 +46,12 @@ int main(int argc,char **argv)
     DMDALocalInfo         info;
 
     //grid:
-    PetscReal             Lx = 10.0, Ly = 10.0;
-    PetscInt              Nx = 400, Ny = 400;
+    PetscReal             Lx = 1.0, Ly = 1.0;
+    PetscInt              Nx = 800, Ny = 800;
     PetscReal             hx = Lx/PetscReal(Nx), hy = Ly/PetscReal(Ny);
 
     //wave speed, time step and cfl:
-    PetscReal             C = 10.0, dt = 0.001, Tf = 0.3;
+    PetscReal             C = 1.0, dt = 0.0005, Tf = 3.0;
     PetscReal             cfl = C*(dt/hx + dt/hy);  
 
     ierr = PetscInitialize(&argc,&argv,NULL,NULL); if (ierr) return ierr;
@@ -60,7 +60,7 @@ int main(int argc,char **argv)
     WaveCtx               user{C};
 
     //setup distributed grid:
-    ierr = DMDACreate2d(PETSC_COMM_WORLD, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC,  DMDA_STENCIL_STAR, Nx, Ny, PETSC_DECIDE, PETSC_DECIDE, 2, 1, NULL, NULL, &da);  
+    ierr = DMDACreate2d(PETSC_COMM_WORLD, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE,  DMDA_STENCIL_STAR, Nx, Ny, PETSC_DECIDE, PETSC_DECIDE, 2, 1, NULL, NULL, &da);  
     ierr = DMSetFromOptions(da); CHKERRQ(ierr);
     ierr = DMSetUp(da); CHKERRQ(ierr);
     ierr = DMDASetFieldName(da,0,"u"); CHKERRQ(ierr);
@@ -75,7 +75,7 @@ int main(int argc,char **argv)
     ierr = TSSetDM(ts,da); CHKERRQ(ierr);
     ierr = TSSetApplicationContext(ts,&user); CHKERRQ(ierr);
     ierr = DMDATSSetRHSFunctionLocal(da,INSERT_VALUES,(DMDATSRHSFunctionLocal)FormRHSFunctionLocal,&user); CHKERRQ(ierr);
-    //ierr = TSMonitorSet(ts,MyTSMonitor,0,0);CHKERRQ(ierr);
+    ierr = TSMonitorSet(ts,MyTSMonitor,0,0);CHKERRQ(ierr);
 
     ierr = TSSetType(ts,TSRK);CHKERRQ(ierr);
     ierr = TSSetTime(ts,0.0); CHKERRQ(ierr);
@@ -89,7 +89,7 @@ int main(int argc,char **argv)
 
     //initial condition:
     ierr = DMCreateGlobalVector(da,&x); CHKERRQ(ierr);
-    ierr = initial_condition(Perturbation{0.5*Lx,0.5*Ly,0.125},da,x);
+    ierr = initial_condition(Perturbation{0.5*Lx,0.5*Ly,0.005},da,x);
 
     //solve:
     ierr = TSSolve(ts,x); CHKERRQ(ierr);
@@ -125,6 +125,12 @@ PetscErrorCode FormRHSFunctionLocal(DMDALocalInfo *info, PetscReal t, Field **aX
   {
     for (int i = info->xs; i < info->xs + info->xm; i++)
     {
+    	 if (i == 0 || j == 0 || i == info->mx - 1 || j == info->my - 1) {
+        aF[j][i].u = aX[j][i].u;
+        aF[j][i].v = aX[j][i].v;
+        continue;
+		 }
+    
 
       uxx = (aX[j][i + 1].u - 2.0 * aX[j][i].u + aX[j][i - 1].u) / (hx * hx);
       uyy = (aX[j + 1][i].u - 2.0 * aX[j][i].u + aX[j - 1][i].u) / (hy * hy);
@@ -173,7 +179,7 @@ PetscErrorCode MyTSMonitor(TS ts,PetscInt step,PetscReal ptime,Vec v,void *ctx)
   ierr = TSGetDM(ts,&da); CHKERRQ(ierr);
 
   
-  if (step % 10 == 0)
+  if (step % 100 == 0)
   {
     //plot vtk:
     char filename[20];

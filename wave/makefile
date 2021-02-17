@@ -3,7 +3,7 @@ CFLAGS		=
 CPPFLAGS	=	-Wall
 LIBFILES	=
 TARGET		=	wave
-SRC			=	spherical_periodic.cc
+SRC			=	spherical_wave.cc
 OBJ			=	$(SRC:.cc=.o)
 CLEANFILES	=	$(TARGET)
 LOCDIR		=	$(CURDIR)
